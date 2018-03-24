@@ -3,6 +3,7 @@ from networkx.algorithms.shortest_paths import astar_path
 
 from src.bot.Bot import Bot
 from src.symbols.ObjectSymbols import ObjectSymbols
+import random
 
 HEALTH_THRESHOLD = 25
 DEFAULT_MOVE = 1
@@ -208,9 +209,13 @@ class QuJo(Bot):
 
             # follow other bot to attack
             # if its carrying a lot AND more than me AND distance is closer than the closest material
-            if other_bots[0]['carrying'] > 50 and other_bots[0]['carrying'] > self.character_state['carrying'] and self.get_distance(self.character_state['location'], other_bots[0]['location']) > self.get_distance(self.character_state['location'], self.get_nearest_material_deposit()):
-                moves['move'] = moves.get('move') + other_bots[0]['carrying']
-                move_goal = other_bots[0]['location']
+            for bot in self.other_bots:
+                if bot['carrying'] > self.character_state['carrying'] and len(self.path_between(self.character_state['location'], bot['location'])) > len(self.path_between(self.character_state['location'], self.get_best_material_deposit())):
+                    if self.beside(self.character_state['location'], bot['location']):
+                        moves['attack'] += PREFERABLE
+                    else:
+                        moves['move'] = moves.get('move') + bot['carrying']
+                        move_goal = bot['location']
 
             best_move = max(moves, key=moves.get)
 
@@ -250,7 +255,7 @@ class QuJo(Bot):
             elif self.character_state['base'] == self.character_state['location'] and self.character_state['carrying'] > 0:
                 command = self.commands.store()
             else:
-                command = self.commands.collect()
+                command = self.commands.attack(self.random_direction())
             return command
 
         return command
@@ -271,6 +276,9 @@ class QuJo(Bot):
 
             return best_value[1]
 
+    @staticmethod
+    def random_direction():
+        return random.choice(['N','S','E','W'])
 
     # Get the closest material location
     def get_nearest_material_deposit(self, prefer_unvisited=False):
