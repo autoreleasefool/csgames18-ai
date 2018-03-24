@@ -20,6 +20,11 @@ class QuJo(Bot):
         self.materials = {}
         self.other_bot_locs = {}
         self.current_turn = 0
+        self.game_map = None
+        self.graph_attr = None
+        self.graph_attr_turn = -1
+        self.healed_spike = False
+
 
         # Custom pathfinder
         self.pathfinder.create_graph = self.create_graph
@@ -31,6 +36,7 @@ class QuJo(Bot):
     def game_init(self):
         self.game_initialized = True
         game_map = self.game_state.strip().split('\n')
+        self.game_map = game_map
         size_x = len(game_map[0])
         size_y = len(game_map)
         being_attacked = False
@@ -83,12 +89,12 @@ class QuJo(Bot):
         if self.game_is_critical():
             return self.critical_action()
 
-        print(game_state)
-        print(character_state)
-        print(other_bots)
-
-        print("being attacked")
-        print(self.being_attacked)
+        # Heal after crossing spikes
+        bot_x, bot_y = self.character_state['location']
+        if self.game_map[bot_x][bot_y] == 'S' and not self.healed_spike:
+            self.healed_spike = True
+            return self.commands.rest()
+        self.healed_spike = False
 
         if self.being_attacked:
 
@@ -266,8 +272,6 @@ class QuJo(Bot):
                 return True
             elif avoid_bots and pos in self.other_bot_locs.keys():
                 return False
-            elif symbol is ObjectSymbols.SPIKE:
-                return False
             elif symbol.can_pass_through():
                 return True
 
@@ -293,6 +297,19 @@ class QuJo(Bot):
                     if can_pass_through(bottom_pos, bottom_symbol):
                         graph.add_edge((y, x), (y+1, x))
 
+        # {e: e[1][0]*2 for e in G.edges()}
+        if self.graph_attr_turn != self.current_turn:
+            self.graph_attr = {}
+            self.graph_attr_turn = self.current_turn
+            for edge in graph.edges():
+                v1, v2 = edge
+                if self.game_map[v1[0]][v1[1]] == 'S' or self.game_map[v2[0]][v2[1]] == 'S':
+                    self.graph_attr[edge] = 1.5 if self.character_state['health'] > HEALTH_THRESHOLD else 100
+                else:
+                    self.graph_attr[edge] = 1
+
+        nx.set_edge_attributes(graph, self.graph_attr, 'cost')
+
         return graph
 
     # Overwrite Pathfinder
@@ -302,7 +319,7 @@ class QuJo(Bot):
         graph = self.pathfinder.create_graph(self.pathfinder.game_map)
         direction = None
         try:
-            path = astar_path(graph, start, goal)
+            path = astar_path(graph, start, goal, weight='cost')
             direction = self.pathfinder.convert_node_to_direction(path)
         except Exception:
             pass
