@@ -16,6 +16,7 @@ class QuJo(Bot):
     def __init__(self):
         super().__init__()
         self.last_character_state = None
+        self.last_other_bots = None
         self.game_initialized = False
         self.materials = {}
         self.other_bot_locs = {}
@@ -55,6 +56,7 @@ class QuJo(Bot):
 
     def turn(self, game_state, character_state, other_bots):
         self.last_character_state = self.character_state
+        self.last_other_bots = self.other_bots
         self.current_turn += 1
         super().turn(game_state, character_state, other_bots)
 
@@ -71,6 +73,11 @@ class QuJo(Bot):
             collected = self.character_state['carrying'] - self.last_character_state['carrying']
             if collected > 0:
                 self.materials[self.get_nearest_material_deposit()]['history'].append(collected)
+        if self.last_other_bots:
+            for index, bot in enumerate(self.last_other_bots):
+                collected = self.other_bots[index]['carrying'] - self.last_other_bots[index]['carrying']
+                if collected > 0 and self.other_bots[index]['location'] in self.materials:
+                    self.materials[self.other_bots[index]['location']]['history'].append(collected )
 
         # Create set of other bot positions
         self.other_bot_locs.clear()
