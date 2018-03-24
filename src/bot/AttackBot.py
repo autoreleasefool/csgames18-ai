@@ -12,10 +12,7 @@ class AttackBot(Bot):
 
     # returns True if two locations are adjacent on map
     def beside(self, location1, location2):
-        if ((abs(location1[0] - location2[0]) == 1) and (abs(location1[1] - location2[1]) == 0)) or ((abs(location1[0] - location2[0]) == 0) and (abs(location1[1] - location2[1]) == 1)):
-            return True
-        else:
-            return False
+        return ((abs(location1[0] - location2[0]) == 1) and (abs(location1[1] - location2[1]) == 0)) or ((abs(location1[0] - location2[0]) == 0) and (abs(location1[1] - location2[1]) == 1))
 
     # returns valid surrounding nodes of a given location
     def surrounding_nodes(self, location, map):
@@ -100,12 +97,12 @@ class AttackBot(Bot):
             move_goal = self.character_state['base']
 
         # if carrying a lot of points, move to base
-        if self.character_state['carrying'] < 20:
+        if self.character_state['carrying'] > 20:
             moves['move'] = moves.get('move') + 10
             move_goal = self.character_state['base']
 
         # if carrying a lot and at base, store it
-        if self.character_state['carrying'] < 20 and (self.character_state['location'] == self.character_state['base']):
+        if self.character_state['carrying'] > 20 and (self.character_state['location'] == self.character_state['base']):
             moves['store'] = moves.get('store') + 20
 
         # TEST

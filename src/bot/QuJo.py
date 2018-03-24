@@ -91,12 +91,12 @@ class QuJo(Bot):
             move_goal = self.character_state['base']
 
         # if carrying a lot of points, move to base
-        if self.character_state['carrying'] < 20:
+        if self.character_state['carrying'] > 20:
             moves['move'] = moves.get('move') + 10
             move_goal = self.character_state['base']
 
         # if carrying a lot and at base, store it
-        if self.character_state['carrying'] < 20 and (self.character_state['location'] == self.character_state['base']):
+        if self.character_state['carrying'] > 20 and (self.character_state['location'] == self.character_state['base']):
             moves['store'] = moves.get('store') + 20
 
         best_move = max(moves, key=moves.get)
