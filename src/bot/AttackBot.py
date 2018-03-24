@@ -96,12 +96,12 @@ class AttackBot(Bot):
 
         # IF health <10, move towards base
         if self.character_state['health'] < 10:
-            moves['move'] = move.get('move') + 10
+            moves['move'] = s.get('move') + 10
             move_goal = self.character_state['base']
 
         # if carrying a lot of points, move to base
         if self.character_state['carrying'] < 20:
-            moves['move'] = move.get('move') + 10
+            moves['move'] = moves.get('move') + 10
             move_goal = self.character_state['base']
 
         # if carrying a lot and at base, store it
