@@ -15,6 +15,7 @@ class QuJo(Bot):
 
     def __init__(self):
         super().__init__()
+        self.last_character_state = None
         self.game_initialized = False
         self.materials = {}
         self.other_bot_locs = {}
@@ -32,12 +33,17 @@ class QuJo(Bot):
         for y in range(size_y):
             for x in range(size_x):
                 if game_map[y][x] == 'J':
-                    self.materials[(y, x)] = { 'visited': False }
+                    self.materials[(y, x)] = {
+                        'visited': False,
+                        'history': [],
+                        'dist_to_base': len(self.path_between(self.character_state['base'], (y, x)))
+                    }
 
     def get_name(self):
         return 'QuJo'
 
     def turn(self, game_state, character_state, other_bots):
+        self.last_character_state = self.character_state
         super().turn(game_state, character_state, other_bots)
 
         # Initialize bot on first turn
@@ -47,6 +53,12 @@ class QuJo(Bot):
         # Update visited positions
         if self.character_state['location'] in self.materials:
             self.materials[self.character_state['location']]['visited'] = True
+
+        # Update average value of material deposit
+        if self.last_character_state:
+            collected = self.character_state['carrying'] - self.last_character_state['carrying']
+            if collected > 0:
+                self.materials[self.get_nearest_material_deposit()]['history'].append(collected)
 
         # Create set of other bot positions
         self.other_bot_locs.clear()
@@ -60,9 +72,8 @@ class QuJo(Bot):
         store_goal = character_state['base']
         rest_goal = character_state['base']
         attack_goal = nearest_enemy['location']
-        collect_goal = self.get_nearest_material_deposit(prefer_unvisited=True)
+        collect_goal = self.get_best_material_deposit()
         move_goal = collect_goal
-
 
         if self.character_state['location'] in self.materials:
             moves['collect'] += PREFERABLE
@@ -123,6 +134,23 @@ class QuJo(Bot):
 
         return command
 
+    # Get the best material deposit - distance vs value
+    def get_best_material_deposit(self):
+        if not self.last_character_state:
+            return self.get_nearest_material_deposit(prefer_unvisited=True)
+        else:
+            best_value = None
+            for pos in self.materials:
+                location = self.materials[pos]
+                mean = sum(location['history']) / len(location['history']) if len(location['history']) > 0 else 20
+                dist = location['dist_to_base']
+                point_per_turn = mean / dist
+                if not best_value or point_per_turn > best_value[0]:
+                    best_value = (point_per_turn, pos)
+
+            return best_value[1]
+
+
     # Get the closest material location
     def get_nearest_material_deposit(self, prefer_unvisited=False):
         possible_goals = []
@@ -144,12 +172,7 @@ class QuJo(Bot):
     def get_nearest(self, locations, avoid_bots=True):
         nearest = None
         for location in locations:
-            start = self.pathfinder.start = self.character_state['location']
-            goal = self.pathfinder.goal = location
-            game_map = self.pathfinder.parse_game_state(self.game_state)
-            graph = self.pathfinder.create_graph(game_map, avoid_bots=avoid_bots)
-            path = astar_path(graph, start, goal, self.manhattan_distance)
-
+            path = self.path_between(self.character_state['location'], location, avoid_bots=avoid_bots)
             if nearest is None or len(path) < nearest[0]:
                 nearest = (len(path), location)
         return nearest[1]
@@ -210,6 +233,15 @@ class QuJo(Bot):
 
     def in_base(self):
         return self.character_state['location'] == self.character_state['base']
+
+    def path_between(self, pointA, pointB, avoid_bots=True):
+        start = self.pathfinder.start = pointA
+        goal = self.pathfinder.goal = pointB
+        game_map = self.pathfinder.parse_game_state(self.game_state)
+        graph = self.pathfinder.create_graph(game_map, avoid_bots=avoid_bots)
+        path = astar_path(graph, start, goal, self.manhattan_distance)
+
+        return path
 
     @staticmethod
     def manhattan_distance(pos1, pos2):
