@@ -15,6 +15,7 @@ class QuJo(Bot):
 
     def __init__(self):
         super().__init__()
+<<<<<<< Updated upstream
         self.last_character_state = None
         self.last_other_bots = None
         self.game_initialized = False
@@ -26,6 +27,15 @@ class QuJo(Bot):
         self.graph_attr_turn = -1
         self.healed_spike = False
 
+=======
+        self.last_character_state_1 = None
+        self.last_character_state_2 = None
+        self.last_character_state_3 = None
+        self.game_initialized = False
+        self.materials = {}
+        self.other_bot_locs = {}
+        self.game_map = None
+>>>>>>> Stashed changes
 
         # Custom pathfinder
         self.pathfinder.create_graph = self.create_graph
@@ -40,7 +50,7 @@ class QuJo(Bot):
         self.game_map = game_map
         size_x = len(game_map[0])
         size_y = len(game_map)
-        being_attacked = False
+        self.being_attacked = False
 
         for y in range(size_y):
             for x in range(size_x):
@@ -56,9 +66,18 @@ class QuJo(Bot):
         return 'QuJo'
 
     def turn(self, game_state, character_state, other_bots):
+<<<<<<< Updated upstream
         self.last_character_state = self.character_state
         self.last_other_bots = self.other_bots
         self.current_turn += 1
+=======
+
+        # set prev character states
+        self.last_character_state_1 = self.character_state
+        self.last_character_state_2 = self.last_character_state_1
+        self.last_character_state_3 = self.last_character_state_2
+
+>>>>>>> Stashed changes
         super().turn(game_state, character_state, other_bots)
 
         # Initialize bot on first turn
@@ -70,8 +89,8 @@ class QuJo(Bot):
             self.materials[self.character_state['location']]['visited'] = True
 
         # Update average value of material deposit
-        if self.last_character_state:
-            collected = self.character_state['carrying'] - self.last_character_state['carrying']
+        if self.last_character_state_1:
+            collected = self.character_state['carrying'] - self.last_character_state_1['carrying']
             if collected > 0:
                 material = self.materials[self.get_nearest_material_deposit()]
                 material['total_collected'] += collected
@@ -91,12 +110,53 @@ class QuJo(Bot):
         nearest_enemy = self.get_nearest_enemy()
 
         # check if being attacked
-        # add "and beside an enemy?"
-        if self.last_character_state is not None and self.last_character_state['health'] - self.character_state['health'] > 0:
-            self.being_attacked = True
+        # - bot is not being attack if health has not changes in three turns
+        # it's okay to just check for last_character_state_3 since you will not be attacked in the first 3 turns
 
-        elif self.last_character_state is not None and self.last_character_state['health'] - self.character_state['health'] == 0:
-            self.being_attacked = False
+        # # check that health has not changed in 3 turns
+        # if self.last_character_state_3 and self.last_character_state_1['health'] == self.character_state['health'] and self.last_character_state_2['health'] == self.character_state['health'] and self.last_character_state_3['health'] == self.character_state['health']:
+        #     if self.being_attacked:
+        #          # check that bot also feels safe
+        #          if self.feels_safe():
+        #              self.being_attacked = False
+        # else:
+        #     self.being_attacked = True
+
+
+        # check that health has not changed in 3 turns
+        # if yes, check if it is due to a spike (currently on spike)
+        safe = True
+        if self.last_character_state_3:
+            # check current and last state
+            if self.last_character_state_1['health'] != self.character_state['health']:
+                # if damage was not caused by a spike, then not safe
+
+                print(self.game_map[self.character_state['location'][0]][self.character_state['location'][1]])
+
+                if self.game_map[self.character_state['location'][0]][self.character_state['location'][1]] != "S":
+                    safe = False
+                    print("SPIKE")
+            # check next two states
+            if self.last_character_state_2['health'] != self.last_character_state_1['health']:
+                # if damage was not caused by a spike, then not safe
+
+                print(self.game_map[self.last_character_state_1['location'][0]][self.last_character_state_1['location'][1]])
+
+                if self.game_map[self.last_character_state_1['location'][0]][self.last_character_state_1['location'][1]] != "S":
+                    safe = False
+                    print("SPIKE")
+
+            if safe:
+                print("HEALTHY")
+                if self.being_attacked:
+                    if self.feels_safe():
+                        self.being_attacked = False
+                        print("HERE 3")
+            else:
+                self.being_attacked = True
+                print("HERE 4")
+
+        # check that game_state.
 
         if self.game_is_critical():
             return self.critical_action()
@@ -141,9 +201,16 @@ class QuJo(Bot):
                     moves['move'] += DEFINITELY
                     move_goal = self.character_state['base']
 
+<<<<<<< Updated upstream
             # if health is low and currently on base, rest
             if self.character_state['health'] < 20:
                 moves['rest'] = moves.get('rest') + 20
+=======
+            # if carrying a lot of points, move to base
+            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
+                moves['move'] += PREFERABLE
+                move_goal = self.character_state['base']
+>>>>>>> Stashed changes
 
             # if beside enemy attack enemy
             # attack bot with lowest health that is carrying > 0
@@ -217,7 +284,7 @@ class QuJo(Bot):
 
     # Get the best material deposit - distance vs value
     def get_best_material_deposit(self):
-        if not self.last_character_state:
+        if not self.last_character_state_1:
             return self.get_nearest_material_deposit(prefer_unvisited=True)
         else:
             best_value = None
