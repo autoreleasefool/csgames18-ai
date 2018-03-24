@@ -11,7 +11,7 @@ DEFINITELY = 100000
 PREFERABLE = 50
 MAX_TURNS = 1000
 
-class QuJo(Bot):
+class PassiveBot(Bot):
 
     def __init__(self):
         super().__init__()
@@ -54,7 +54,7 @@ class QuJo(Bot):
                     }
 
     def get_name(self):
-        return 'QuJo'
+        return 'PassiveBot'
 
     def turn(self, game_state, character_state, other_bots):
         self.last_character_state_1 = self.character_state
@@ -119,6 +119,7 @@ class QuJo(Bot):
 
                 if self.game_map[self.character_state['location'][0]][self.character_state['location'][1]] != "S":
                     safe = False
+                    print("SPIKE")
             # check next two states
             if self.last_character_state_2['health'] != self.last_character_state_1['health']:
                 # if damage was not caused by a spike, then not safe
@@ -127,13 +128,17 @@ class QuJo(Bot):
 
                 if self.game_map[self.last_character_state_1['location'][0]][self.last_character_state_1['location'][1]] != "S":
                     safe = False
+                    print("SPIKE")
 
             if safe:
+                print("HEALTHY")
                 if self.being_attacked:
                     if self.feels_safe():
                         self.being_attacked = False
+                        print("HERE 3")
             else:
                 self.being_attacked = True
+                print("HERE 4")
 
         # check that game_state.
 
@@ -241,20 +246,7 @@ class QuJo(Bot):
             if self.character_state['location'] in self.materials:
                 command = self.commands.collect()
             elif direction:
-
-                print("beside?")
-                print(self.beside(self.character_state['location'], goal))
-                print("nearest enemy")
-                print(self.get_nearest_enemy()['location'])
-                print("goal")
-                print(goal)
-                print("equal?")
-                print(self.get_nearest_enemy()['location'] == goal)
-
-                if self.beside(self.character_state['location'], goal) and self.get_nearest_enemy()['location'] == goal:
-                    command = self.commands.attack(goal)
-                else:
-                    command = self.commands.move(direction)
+                command = self.commands.move(direction)
             elif self.character_state['base'] == self.character_state['location'] and self.character_state['carrying'] > 0:
                 command = self.commands.store()
             else:
