@@ -57,52 +57,46 @@ class QuJo(Bot):
         rest_goal = character_state['base']
         collect_goal = self.get_nearest_material_deposit(prefer_unvisited=True)
 
-        # if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-        #     goal = self.character_state['base']
-        # else:
-        #     goal = collect_goal
+        # if health is low and currently on base, rest
+        if self.character_state['health'] < 20:
+            moves['rest'] = moves.get('rest') + 20
 
+        # if beside enemy attack enemy
+        # attack bot with lowest health that is carrying > 0
+        # bot_to_attack = None
+        # for bots in other_bots:
+        #     if self.beside(self.character_state['location'], bot['location']):
+        #         if (bot_to_attack is None) or (bot['health'] < bot_to_attack['health'] and bot['carrying'] != 0):
+        #             bot_to_attack = bot
+        # if (bot_to_attack is not None):
+        #     print("bot to attack")
+        #     print(bot_to_attack)
+        #     moves['attack'] = moves.get('attack') + bot_to_attack['carrying']
+        #     attack_goal = bot_to_attack['location']
 
-        # if beside enemy AND carrying > 0
-        # - increase 'attack' (+10)
-        # - update attack_goal
-        if self.beside(self.character_state['location'], other_bots[0]['location']) and (other_bots[0]['carrying'] > 0):
-            moves['attack'] = moves.get('attack') + 10
+        # attacking first bot that is beside me
+        if self.beside(self.character_state['location'], other_bots[0]['location']):
+            moves['attack'] = moves.get('attack') + other_bots[0]['carrying']
             attack_goal = other_bots[0]['location']
 
-        # if beside material
-        # - increase 'collect' (+1 point)
-        # nodes = self.surrounding_nodes(self.character_state['location'], game_map)
-        # for n in nodes:
-        #     print("node")
-        #     print(n)
-        #     if game_map[n[0]][n[1]] == "J":
-        #         moves['collect'] = moves.get('collect') + 1
-        #         move_goal = (n[0],n[1])
-        #         break
-
-        # if material is close
-        # - update goal to material
-        # - move
-
-        # IF health <10, move towards base
-        if self.character_state['health'] < 10:
-            moves['move'] = moves.get('move') + 10
-            move_goal = self.character_state['base']
-
-        # if carrying a lot of points, move to base
-        if self.character_state['carrying'] > 20:
-            moves['move'] = moves.get('move') + 10
-            move_goal = self.character_state['base']
+        # if health <20, heal
+        if self.character_state['health'] < 20:
+            moves['rest'] = moves.get('rest') + 100
+            # move_goal = self.character_state['base']
 
         # if carrying a lot and at base, store it
         if self.character_state['carrying'] > 20 and (self.character_state['location'] == self.character_state['base']):
             moves['store'] = moves.get('store') + 20
 
+        # follow other bot to attack
+        # if its carrying a lot AND more than me AND distance is closer than the closest material
+        if other_bots[0]['carrying'] > 50 and other_bots[0]['carrying'] > self.character_state['carrying'] and self.get_distance(self.character_state['location'], other_bots[0]['location']) > self.get_distance(self.character_state['location'], self.get_nearest_material_deposit(prefer_unvisited=True)):
+            moves['move'] = moves.get('move') + other_bots[0]['carrying']
+            move_goal = other_bots[0]['location']
+
         best_move = max(moves, key=moves.get)
 
         # select the best move to make
-        command = self.commands.idle()
         if "attack" in best_move and (moves.get(best_move) > 0):
             direction = self.pathfinder.get_next_direction(self.character_state['location'], attack_goal)
             command = self.commands.attack(direction)
@@ -117,13 +111,40 @@ class QuJo(Bot):
         elif "rest" in best_move and (moves.get(best_move) > 0):
             command = self.commands.rest()
 
-        # else move
-        else:
+        elif "move" in best_move and (moves.get(best_move) > 0):
             direction = self.pathfinder.get_next_direction(self.character_state['location'], move_goal)
             if direction:
                 command = self.commands.move(direction)
             else:
                 command = self.commands.idle()
+
+        # else move to get nearest materials deposit
+        else:
+            nearest_deposit = self.get_nearest_material_deposit(prefer_unvisited=True)
+            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
+                goal = self.character_state['base']
+            else:
+                goal = nearest_deposit
+
+            direction = self.pathfinder.get_next_direction(self.character_state['location'], goal)
+            command = self.commands.idle()
+            if self.character_state['location'] in self.materials and self.character_state['carrying'] < MATERIAL_THRESHOLD:
+                command = self.commands.collect()
+            elif direction:
+                command = self.commands.move(direction)
+            elif self.character_state['base'] == self.character_state['location'] and self.character_state['carrying'] > 0:
+                command = self.commands.store()
+            else:
+                command = self.commands.collect()
+            return command
+
+
+            # move_goal = collect_goal
+            # direction = self.pathfinder.get_next_direction(self.character_state['location'], move_goal)
+            # if direction:
+            #     command = self.commands.move(direction)
+            # else:
+            #     command = self.commands.idle()
 
         return command
 
@@ -212,6 +233,12 @@ class QuJo(Bot):
     @staticmethod
     def beside(location1, location2):
         return ((abs(location1[0] - location2[0]) == 1) and (abs(location1[1] - location2[1]) == 0)) or ((abs(location1[0] - location2[0]) == 0) and (abs(location1[1] - location2[1]) == 1))
+
+    @staticmethod
+    def get_distance(location1, location2):
+        x_diff = abs(location1[0] - location2[0])
+        y_diff = abs(location1[1] - location2[1])
+        return x_diff + y_diff
 
     # returns valid surrounding nodes of a given location
     @staticmethod
