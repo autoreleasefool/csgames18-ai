@@ -5,10 +5,10 @@ from src.bot.Bot import Bot
 from src.symbols.ObjectSymbols import ObjectSymbols
 
 MATERIAL_THRESHOLD = 100
-HEALTH_THRESHOLD = 20
+HEALTH_THRESHOLD = 25
 DEFAULT_MOVE = 1
 NEVER = -1
-DEFINITELY = 1000
+DEFINITELY = 100000
 PREFERABLE = 50
 
 class QuJo(Bot):
@@ -76,7 +76,7 @@ class QuJo(Bot):
         move_goal = collect_goal
 
         if self.character_state['location'] in self.materials:
-            moves['collect'] += PREFERABLE
+            moves['collect'] += PREFERABLE * 2
 
         # Once you're over the material threshold, stop collecting
         if self.character_state['carrying'] > MATERIAL_THRESHOLD:
@@ -90,8 +90,11 @@ class QuJo(Bot):
 
         # IF health <10, move towards base
         if self.character_state['health'] < HEALTH_THRESHOLD:
-            moves['move'] += PREFERABLE
-            move_goal = self.character_state['base']
+            if self.feels_safe(nearest_enemy=nearest_enemy):
+                moves['rest'] += DEFINITELY
+            else:
+                moves['move'] += DEFINITELY
+                move_goal = self.character_state['base']
 
         # if carrying a lot of points, move to base
         if self.character_state['carrying'] > MATERIAL_THRESHOLD:
@@ -176,6 +179,11 @@ class QuJo(Bot):
             if nearest is None or len(path) < nearest[0]:
                 nearest = (len(path), location)
         return nearest[1]
+
+    def feels_safe(self, nearest_enemy=None):
+        if not nearest_enemy:
+            nearest_enemy = self.get_nearest_enemy()
+        return len(self.path_between(self.character_state['location'], nearest_enemy['location'])) > 2
 
     # Overwrite Pathfinder
     def create_graph(self, game_map, avoid_bots=True):
