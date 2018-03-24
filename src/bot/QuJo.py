@@ -4,13 +4,12 @@ from networkx.algorithms.shortest_paths import astar_path
 from src.bot.Bot import Bot
 from src.symbols.ObjectSymbols import ObjectSymbols
 
-MATERIAL_THRESHOLD = 2000
 HEALTH_THRESHOLD = 25
 DEFAULT_MOVE = 1
 NEVER = -1
 DEFINITELY = 100000
 PREFERABLE = 50
-
+MAX_TURNS = 1000
 
 class QuJo(Bot):
 
@@ -20,6 +19,7 @@ class QuJo(Bot):
         self.game_initialized = False
         self.materials = {}
         self.other_bot_locs = {}
+        self.current_turn = 0
 
         # Custom pathfinder
         self.pathfinder.create_graph = self.create_graph
@@ -49,6 +49,7 @@ class QuJo(Bot):
 
     def turn(self, game_state, character_state, other_bots):
         self.last_character_state = self.character_state
+        self.current_turn += 1
         super().turn(game_state, character_state, other_bots)
 
         # Initialize bot on first turn
@@ -79,6 +80,9 @@ class QuJo(Bot):
         elif self.last_character_state is not None and self.last_character_state['health'] - self.character_state['health'] == 0:
             self.being_attacked = False
 
+        if self.game_is_critical():
+            return self.critical_action()
+
         print(game_state)
         print(character_state)
         print(other_bots)
@@ -105,10 +109,6 @@ class QuJo(Bot):
             if self.character_state['location'] in self.materials:
                 moves['collect'] += PREFERABLE * 2
 
-            # Once you're over the material threshold, stop collecting
-            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-                moves['collect'] = NEVER
-
             # if beside enemy AND carrying > 0
             # - increase 'attack' (+10)
             # - update attack_goal
@@ -122,11 +122,6 @@ class QuJo(Bot):
                 else:
                     moves['move'] += DEFINITELY
                     move_goal = self.character_state['base']
-
-            # if carrying a lot of points, move to base
-            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-                moves['move'] += PREFERABLE
-                move_goal = self.character_state['base']
 
             # if health is low and currently on base, rest
             if self.character_state['health'] < 20:
@@ -155,7 +150,7 @@ class QuJo(Bot):
 
             # follow other bot to attack
             # if its carrying a lot AND more than me AND distance is closer than the closest material
-            if other_bots[0]['carrying'] > 50 and other_bots[0]['carrying'] > self.character_state['carrying'] and self.get_distance(self.character_state['location'], other_bots[0]['location']) > self.get_distance(self.character_state['location'], self.get_nearest_material_deposit(prefer_unvisited=True)):
+            if other_bots[0]['carrying'] > 50 and other_bots[0]['carrying'] > self.character_state['carrying'] and self.get_distance(self.character_state['location'], other_bots[0]['location']) > self.get_distance(self.character_state['location'], self.get_nearest_material_deposit()):
                 moves['move'] = moves.get('move') + other_bots[0]['carrying']
                 move_goal = other_bots[0]['location']
 
@@ -185,15 +180,12 @@ class QuJo(Bot):
 
         else:
             # keep picking up materials
-            nearest_deposit = self.get_nearest_material_deposit(prefer_unvisited=True)
-            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-                goal = self.character_state['base']
-            else:
-                goal = nearest_deposit
+            best_deposit = self.get_best_material_deposit()
+            goal = best_deposit
 
             direction = self.pathfinder.get_next_direction(self.character_state['location'], goal)
             command = self.commands.idle()
-            if self.character_state['location'] in self.materials and self.character_state['carrying'] < MATERIAL_THRESHOLD:
+            if self.character_state['location'] in self.materials:
                 command = self.commands.collect()
             elif direction:
                 command = self.commands.move(direction)
@@ -202,14 +194,6 @@ class QuJo(Bot):
             else:
                 command = self.commands.collect()
             return command
-
-
-            # move_goal = collect_goal
-            # direction = self.pathfinder.get_next_direction(self.character_state['location'], move_goal)
-            # if direction:
-            #     command = self.commands.move(direction)
-            # else:
-            #     command = self.commands.idle()
 
         return command
 
@@ -221,9 +205,9 @@ class QuJo(Bot):
             best_value = None
             for pos in self.materials:
                 location = self.materials[pos]
-                mean = sum(location['history']) / len(location['history']) if len(location['history']) > 0 else 20
+                mean = sum(location['history']) / len(location['history']) if len(location['history']) > 0 else 15
                 dist = location['dist_to_base']
-                point_per_turn = mean / dist
+                point_per_turn = mean / (dist * 2)
                 if not best_value or point_per_turn > best_value[0]:
                     best_value = (point_per_turn, pos)
 
@@ -260,6 +244,16 @@ class QuJo(Bot):
         if not nearest_enemy:
             nearest_enemy = self.get_nearest_enemy()
         return len(self.path_between(self.character_state['location'], nearest_enemy['location'])) > 2
+
+    def game_is_critical(self):
+        return len(self.path_between(self.character_state['location'], self.character_state['base'])) == MAX_TURNS - 1 - self.current_turn
+
+    def critical_action(self):
+        if self.in_base():
+            return self.commands.store()
+        else:
+            direction = self.pathfinder.get_next_direction(self.character_state['location'], self.character_state['base'])
+            return self.commands.move(direction)
 
     # Overwrite Pathfinder
     def create_graph(self, game_map, avoid_bots=True):
