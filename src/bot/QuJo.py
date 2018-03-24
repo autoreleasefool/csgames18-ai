@@ -116,15 +116,11 @@ class QuJo(Bot):
             if self.last_character_state_1['health'] != self.character_state['health']:
                 # if damage was not caused by a spike, then not safe
 
-                print(self.game_map[self.character_state['location'][0]][self.character_state['location'][1]])
-
                 if self.game_map[self.character_state['location'][0]][self.character_state['location'][1]] != "S":
                     safe = False
             # check next two states
             if self.last_character_state_2['health'] != self.last_character_state_1['health']:
                 # if damage was not caused by a spike, then not safe
-
-                print(self.game_map[self.last_character_state_1['location'][0]][self.last_character_state_1['location'][1]])
 
                 if self.game_map[self.last_character_state_1['location'][0]][self.last_character_state_1['location'][1]] != "S":
                     safe = False
@@ -165,13 +161,13 @@ class QuJo(Bot):
             move_goal = collect_goal
 
             if self.character_state['location'] in self.materials:
-                moves['collect'] += PREFERABLE * 2
+                moves['collect'] += PREFERABLE
 
             # if beside enemy AND carrying > 0
             # - increase 'attack' (+10)
             # - update attack_goal
-            if self.beside(self.character_state['location'], nearest_enemy['location']) and nearest_enemy['carrying'] > 0:
-                moves['attack'] += PREFERABLE
+            if self.beside(self.character_state['location'], nearest_enemy['location']):
+                moves['attack'] += PREFERABLE * 2
 
             # IF health < threshold, move towards base
             if self.character_state['health'] < HEALTH_THRESHOLD:
@@ -209,7 +205,7 @@ class QuJo(Bot):
                     if self.beside(self.character_state['location'], bot['location']):
                         moves['attack'] += PREFERABLE
                     else:
-                        moves['move'] = moves.get('move') + bot['carrying']
+                        moves['move'] = PREFERABLE
                         move_goal = bot['location']
 
             best_move = max(moves, key=moves.get)
@@ -247,15 +243,6 @@ class QuJo(Bot):
                 command = self.commands.collect()
             elif direction:
 
-                print("beside?")
-                print(self.beside(self.character_state['location'], goal))
-                print("nearest enemy")
-                print(self.get_nearest_enemy()['location'])
-                print("goal")
-                print(goal)
-                print("equal?")
-                print(self.get_nearest_enemy()['location'] == goal)
-
                 if self.beside(self.character_state['location'], goal) and self.get_nearest_enemy()['location'] == goal:
                     command = self.commands.attack(goal)
                 else:
@@ -277,10 +264,8 @@ class QuJo(Bot):
             for pos in self.materials:
                 location = self.materials[pos]
                 mean = location['total_collected'] / location['total_times'] if location['total_times'] > 0 else 15
-                dist = location['dist_to_base']
-                point_per_turn = mean / (dist * 2)
-                if not best_value or point_per_turn > best_value[0]:
-                    best_value = (point_per_turn, pos)
+                if not best_value or mean > best_value[0]:
+                    best_value = (mean, pos)
 
             return best_value[1]
 
