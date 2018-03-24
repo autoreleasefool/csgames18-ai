@@ -6,7 +6,7 @@ from src.symbols.ObjectSymbols import ObjectSymbols
 
 MATERIAL_THRESHOLD = 100
 
-class PythonBot(Bot):
+class QuJo(Bot):
 
     def __init__(self):
         super().__init__()
@@ -30,7 +30,7 @@ class PythonBot(Bot):
                     self.materials[(y, x)] = { 'visited': False }
 
     def get_name(self):
-        return 'Python'
+        return 'QuJo'
 
     def turn(self, game_state, character_state, other_bots):
         super().turn(game_state, character_state, other_bots)
@@ -48,43 +48,83 @@ class PythonBot(Bot):
         for bot in self.other_bots:
             self.other_bot_locs.add(bot['location'])
 
-        nearest_deposit = self.get_nearest_material_deposit(prefer_unvisited=True)
-        if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-            goal = self.character_state['base']
-        else:
-            goal = nearest_deposit
+        # list of moves with importance, pick move with higest importance
+        moves = {"move": 0, "attack": 0, "collect": 0, "store": 0, "rest": 0}
 
-        # [
-        #     {
-        #         'id': 0,
-        #         'health': 100,
-        #         'carrying': 0,
-        #         'points': 0,
-        #         'location': (7, 1),
-        #         'base': (7, 1),
-        #         'status': 'alive',
-        #         'spawn': 0,
-        #         'name': 'My bot'
-        #     }
-        # ]
+        attack_goal = (1,1)
+        move_goal = (7, 1)
+        store_goal = character_state['base']
+        rest_goal = character_state['base']
+        collect_goal = self.get_nearest_material_deposit(prefer_unvisited=True)
 
-        # self.commands.attack(direction)
-        # self.commands.move(direction)
-        # self.commands.collect()
-        # self.commands.idle()
-        # self.commands.rest()
-        # self.commands.store()
+        # if self.character_state['carrying'] > MATERIAL_THRESHOLD:
+        #     goal = self.character_state['base']
+        # else:
+        #     goal = collect_goal
 
-        direction = self.pathfinder.get_next_direction(self.character_state['location'], goal)
+
+        # if beside enemy AND carrying > 0
+        # - increase 'attack' (+10)
+        # - update attack_goal
+        if self.beside(self.character_state['location'], other_bots[0]['location']) and (other_bots[0]['carrying'] > 0):
+            moves['attack'] = moves.get('attack') + 10
+            attack_goal = other_bots[0]['location']
+
+        # if beside material
+        # - increase 'collect' (+1 point)
+        # nodes = self.surrounding_nodes(self.character_state['location'], game_map)
+        # for n in nodes:
+        #     print("node")
+        #     print(n)
+        #     if game_map[n[0]][n[1]] == "J":
+        #         moves['collect'] = moves.get('collect') + 1
+        #         move_goal = (n[0],n[1])
+        #         break
+
+        # if material is close
+        # - update goal to material
+        # - move
+
+        # IF health <10, move towards base
+        if self.character_state['health'] < 10:
+            moves['move'] = moves.get('move') + 10
+            move_goal = self.character_state['base']
+
+        # if carrying a lot of points, move to base
+        if self.character_state['carrying'] < 20:
+            moves['move'] = moves.get('move') + 10
+            move_goal = self.character_state['base']
+
+        # if carrying a lot and at base, store it
+        if self.character_state['carrying'] < 20 and (self.character_state['location'] == self.character_state['base']):
+            moves['store'] = moves.get('store') + 20
+
+        best_move = max(moves, key=moves.get)
+
+        # select the best move to make
         command = self.commands.idle()
-        if self.character_state['location'] in self.materials and self.character_state['carrying'] < MATERIAL_THRESHOLD:
+        if "attack" in best_move and (moves.get(best_move) > 0):
+            direction = self.pathfinder.get_next_direction(self.character_state['location'], attack_goal)
+            command = self.commands.attack(direction)
+
+        elif "collect" in best_move and (moves.get(best_move) > 0):
+            # direction = self.pathfinder.get_next_direction(self.character_state['location'], collect_goal)
             command = self.commands.collect()
-        elif direction:
-            command = self.commands.move(direction)
-        elif self.character_state['base'] == self.character_state['location'] and self.character_state['carrying'] > 0:
+
+        elif "store" in best_move and (moves.get(best_move) > 0):
             command = self.commands.store()
+
+        elif "rest" in best_move and (moves.get(best_move) > 0):
+            command = self.commands.rest()
+
+        # else move
         else:
-            command = self.commands.collect()
+            direction = self.pathfinder.get_next_direction(self.character_state['location'], move_goal)
+            if direction:
+                command = self.commands.move(direction)
+            else:
+                command = self.commands.idle()
+
         return command
 
     def get_nearest_material_deposit(self, prefer_unvisited=False):
@@ -167,3 +207,22 @@ class PythonBot(Bot):
     @staticmethod
     def manhattan_distance(pos1, pos2):
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
+
+    # returns True if two locations are adjacent on map
+    @staticmethod
+    def beside(location1, location2):
+        return ((abs(location1[0] - location2[0]) == 1) and (abs(location1[1] - location2[1]) == 0)) or ((abs(location1[0] - location2[0]) == 0) and (abs(location1[1] - location2[1]) == 1))
+
+    # returns valid surrounding nodes of a given location
+    @staticmethod
+    def surrounding_nodes(location, map):
+        nodes = []
+        if (location[0] + 1 < len(map[0])):
+            nodes.append([location[0] + 1, location[1]])
+        if (location[1] + 1 < len(map)):
+            nodes.append([location[0], location[1] + 1])
+        if (location[0] - 1 >= 0 ):
+            nodes.append([location[0] - 1, location[1]])
+        if (location[1] - 1 >= 0):
+            nodes.append([location[0] - 1, location[1]])
+        return nodes
