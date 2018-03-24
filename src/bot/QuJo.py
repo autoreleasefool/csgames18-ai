@@ -5,14 +5,20 @@ from src.bot.Bot import Bot
 from src.symbols.ObjectSymbols import ObjectSymbols
 
 MATERIAL_THRESHOLD = 100
+HEALTH_THRESHOLD = 20
+DEFAULT_MOVE = 1
+NEVER = -1
+DEFINITELY = 1000
+PREFERABLE = 50
 
 class QuJo(Bot):
 
     def __init__(self):
         super().__init__()
+        self.last_character_state = None
         self.game_initialized = False
         self.materials = {}
-        self.other_bot_locs = set()
+        self.other_bot_locs = {}
 
         # Custom pathfinder
         self.pathfinder.create_graph = self.create_graph
@@ -27,12 +33,17 @@ class QuJo(Bot):
         for y in range(size_y):
             for x in range(size_x):
                 if game_map[y][x] == 'J':
-                    self.materials[(y, x)] = { 'visited': False }
+                    self.materials[(y, x)] = {
+                        'visited': False,
+                        'history': [],
+                        'dist_to_base': len(self.path_between(self.character_state['base'], (y, x)))
+                    }
 
     def get_name(self):
         return 'QuJo'
 
     def turn(self, game_state, character_state, other_bots):
+        self.last_character_state = self.character_state
         super().turn(game_state, character_state, other_bots)
 
         # Initialize bot on first turn
@@ -43,19 +54,26 @@ class QuJo(Bot):
         if self.character_state['location'] in self.materials:
             self.materials[self.character_state['location']]['visited'] = True
 
+        # Update average value of material deposit
+        if self.last_character_state:
+            collected = self.character_state['carrying'] - self.last_character_state['carrying']
+            if collected > 0:
+                self.materials[self.get_nearest_material_deposit()]['history'].append(collected)
+
         # Create set of other bot positions
         self.other_bot_locs.clear()
         for bot in self.other_bots:
-            self.other_bot_locs.add(bot['location'])
+            self.other_bot_locs[bot['location']] = bot
+        nearest_enemy = self.get_nearest_enemy()
 
         # list of moves with importance, pick move with higest importance
-        moves = {"move": 0, "attack": 0, "collect": 0, "store": 0, "rest": 0}
+        moves = {"move": DEFAULT_MOVE, "attack": 0, "collect": 0, "store": 0, "rest": 0}
 
-        attack_goal = (1,1)
-        move_goal = (7, 1)
         store_goal = character_state['base']
         rest_goal = character_state['base']
-        collect_goal = self.get_nearest_material_deposit(prefer_unvisited=True)
+        attack_goal = nearest_enemy['location']
+        collect_goal = self.get_best_material_deposit()
+        move_goal = collect_goal
 
         # if health is low and currently on base, rest
         if self.character_state['health'] < 20:
@@ -74,19 +92,13 @@ class QuJo(Bot):
         #     moves['attack'] = moves.get('attack') + bot_to_attack['carrying']
         #     attack_goal = bot_to_attack['location']
 
-        # attacking first bot that is beside me
-        if self.beside(self.character_state['location'], other_bots[0]['location']):
-            moves['attack'] = moves.get('attack') + other_bots[0]['carrying']
-            attack_goal = other_bots[0]['location']
-
-        # if health <20, heal
-        if self.character_state['health'] < 20:
-            moves['rest'] = moves.get('rest') + 100
-            # move_goal = self.character_state['base']
-
         # if carrying a lot and at base, store it
-        if self.character_state['carrying'] > 20 and (self.character_state['location'] == self.character_state['base']):
-            moves['store'] = moves.get('store') + 20
+        if self.character_state['carrying'] > 0 and self.in_base():
+            moves['store'] = DEFINITELY
+
+        # Make this last - we crash if we try to collect a non-material
+        if self.character_state['location'] not in self.materials:
+            moves['collect'] = NEVER
 
         # follow other bot to attack
         # if its carrying a lot AND more than me AND distance is closer than the closest material
@@ -148,6 +160,24 @@ class QuJo(Bot):
 
         return command
 
+    # Get the best material deposit - distance vs value
+    def get_best_material_deposit(self):
+        if not self.last_character_state:
+            return self.get_nearest_material_deposit(prefer_unvisited=True)
+        else:
+            best_value = None
+            for pos in self.materials:
+                location = self.materials[pos]
+                mean = sum(location['history']) / len(location['history']) if len(location['history']) > 0 else 20
+                dist = location['dist_to_base']
+                point_per_turn = mean / dist
+                if not best_value or point_per_turn > best_value[0]:
+                    best_value = (point_per_turn, pos)
+
+            return best_value[1]
+
+
+    # Get the closest material location
     def get_nearest_material_deposit(self, prefer_unvisited=False):
         possible_goals = []
         for material in self.materials:
@@ -157,21 +187,24 @@ class QuJo(Bot):
         if not possible_goals and prefer_unvisited:
             return self.get_nearest_material_deposit()
 
+        return self.get_nearest(possible_goals)
+
+    # Get the closest enemy
+    def get_nearest_enemy(self):
+        nearest = self.get_nearest(list(self.other_bot_locs.keys()), avoid_bots=False)
+        return self.other_bot_locs[nearest]
+
+    # Get the closest point from a list of points
+    def get_nearest(self, locations, avoid_bots=True):
         nearest = None
-        for possible in possible_goals:
-            start = self.pathfinder.start = self.character_state['location']
-            goal = self.pathfinder.goal = possible
-            game_map = self.pathfinder.parse_game_state(self.game_state)
-            graph = self.pathfinder.create_graph(game_map)
-            path = astar_path(graph, start, goal, self.manhattan_distance)
-
+        for location in locations:
+            path = self.path_between(self.character_state['location'], location, avoid_bots=avoid_bots)
             if nearest is None or len(path) < nearest[0]:
-                nearest = (len(path), possible)
-
+                nearest = (len(path), location)
         return nearest[1]
 
     # Overwrite Pathfinder
-    def create_graph(self, game_map):
+    def create_graph(self, game_map, avoid_bots=True):
         graph = nx.Graph()
         size_x = len(game_map[0])
         size_y = len(game_map)
@@ -179,7 +212,7 @@ class QuJo(Bot):
         def can_pass_through(pos, symbol):
             if  self.pathfinder._is_start_or_goal(pos):
                 return True
-            elif pos in self.other_bot_locs:
+            elif avoid_bots and pos in self.other_bot_locs.keys():
                 return False
             elif symbol is ObjectSymbols.SPIKE:
                 return False
@@ -218,12 +251,23 @@ class QuJo(Bot):
         direction = None
         try:
             path = astar_path(graph, start, goal)
-            print('hello')
             direction = self.pathfinder.convert_node_to_direction(path)
         except Exception:
             pass
 
         return direction
+
+    def in_base(self):
+        return self.character_state['location'] == self.character_state['base']
+
+    def path_between(self, pointA, pointB, avoid_bots=True):
+        start = self.pathfinder.start = pointA
+        goal = self.pathfinder.goal = pointB
+        game_map = self.pathfinder.parse_game_state(self.game_state)
+        graph = self.pathfinder.create_graph(game_map, avoid_bots=avoid_bots)
+        path = astar_path(graph, start, goal, self.manhattan_distance)
+
+        return path
 
     @staticmethod
     def manhattan_distance(pos1, pos2):
