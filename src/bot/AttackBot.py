@@ -1,7 +1,7 @@
 from src.bot.Bot import Bot
 
 
-class MyBot(Bot):
+class AttackBot(Bot):
 
     def __init__(self):
         super().__init__()

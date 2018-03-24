@@ -3,7 +3,7 @@ from src.bot.Bot import Bot
 from src.symbols.ObjectSymbols import ObjectSymbols
 
 
-class PythonBot(Bot):
+class CollectBot(Bot):
 
     def __init__(self):
         super().__init__()
