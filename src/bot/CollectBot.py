@@ -157,6 +157,7 @@ class CollectBot(Bot):
         direction = None
         try:
             path = astar_path(graph, start, goal)
+            print('hello')
             direction = self.pathfinder.convert_node_to_direction(path)
         except Exception:
             pass
