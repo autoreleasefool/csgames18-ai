@@ -15,8 +15,9 @@ class QuJo(Bot):
 
     def __init__(self):
         super().__init__()
-<<<<<<< Updated upstream
-        self.last_character_state = None
+        self.last_character_state_1 = None
+        self.last_character_state_2 = None
+        self.last_character_state_3 = None
         self.last_other_bots = None
         self.game_initialized = False
         self.materials = {}
@@ -26,16 +27,6 @@ class QuJo(Bot):
         self.graph_attr = None
         self.graph_attr_turn = -1
         self.healed_spike = False
-
-=======
-        self.last_character_state_1 = None
-        self.last_character_state_2 = None
-        self.last_character_state_3 = None
-        self.game_initialized = False
-        self.materials = {}
-        self.other_bot_locs = {}
-        self.game_map = None
->>>>>>> Stashed changes
 
         # Custom pathfinder
         self.pathfinder.create_graph = self.create_graph
@@ -66,18 +57,11 @@ class QuJo(Bot):
         return 'QuJo'
 
     def turn(self, game_state, character_state, other_bots):
-<<<<<<< Updated upstream
-        self.last_character_state = self.character_state
-        self.last_other_bots = self.other_bots
-        self.current_turn += 1
-=======
-
-        # set prev character states
         self.last_character_state_1 = self.character_state
         self.last_character_state_2 = self.last_character_state_1
         self.last_character_state_3 = self.last_character_state_2
-
->>>>>>> Stashed changes
+        self.last_other_bots = self.other_bots
+        self.current_turn += 1
         super().turn(game_state, character_state, other_bots)
 
         # Initialize bot on first turn
@@ -200,17 +184,6 @@ class QuJo(Bot):
                 else:
                     moves['move'] += DEFINITELY
                     move_goal = self.character_state['base']
-
-<<<<<<< Updated upstream
-            # if health is low and currently on base, rest
-            if self.character_state['health'] < 20:
-                moves['rest'] = moves.get('rest') + 20
-=======
-            # if carrying a lot of points, move to base
-            if self.character_state['carrying'] > MATERIAL_THRESHOLD:
-                moves['move'] += PREFERABLE
-                move_goal = self.character_state['base']
->>>>>>> Stashed changes
 
             # if beside enemy attack enemy
             # attack bot with lowest health that is carrying > 0
