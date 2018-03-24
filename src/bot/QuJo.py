@@ -47,7 +47,8 @@ class QuJo(Bot):
                 if game_map[y][x] == 'J':
                     self.materials[(y, x)] = {
                         'visited': False,
-                        'history': [],
+                        'total_collected': 0,
+                        'total_times': 0,
                         'dist_to_base': len(self.path_between(self.character_state['base'], (y, x)))
                     }
 
@@ -72,12 +73,16 @@ class QuJo(Bot):
         if self.last_character_state:
             collected = self.character_state['carrying'] - self.last_character_state['carrying']
             if collected > 0:
-                self.materials[self.get_nearest_material_deposit()]['history'].append(collected)
+                material = self.materials[self.get_nearest_material_deposit()]
+                material['total_collected'] += collected
+                material['total_times'] += 1
         if self.last_other_bots:
             for index, bot in enumerate(self.last_other_bots):
                 collected = self.other_bots[index]['carrying'] - self.last_other_bots[index]['carrying']
                 if collected > 0 and self.other_bots[index]['location'] in self.materials:
-                    self.materials[self.other_bots[index]['location']]['history'].append(collected )
+                    material = self.materials[self.other_bots[index]['location']]
+                    material['total_collected'] += collected
+                    material['total_times'] += 1
 
         # Create set of other bot positions
         self.other_bot_locs.clear()
@@ -218,7 +223,7 @@ class QuJo(Bot):
             best_value = None
             for pos in self.materials:
                 location = self.materials[pos]
-                mean = sum(location['history']) / len(location['history']) if len(location['history']) > 0 else 15
+                mean = location['total_collected'] / location['total_times'] if location['total_times'] > 0 else 15
                 dist = location['dist_to_base']
                 point_per_turn = mean / (dist * 2)
                 if not best_value or point_per_turn > best_value[0]:
