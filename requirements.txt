@@ -19,7 +19,7 @@ prompt-toolkit==1.0.15
 ptyprocess==0.5.2
 py4j==0.10.6
 Pygments==2.2.0
-python-engineio==2.0.2
+python-engineio==3.8.2.post1
 python-socketio==1.8.4
 requests==2.18.4
 simplegeneric==0.8.1
